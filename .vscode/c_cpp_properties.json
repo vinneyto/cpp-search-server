@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "Ubuntu",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/include",
+                "${workspaceFolder}/search-server"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/g++",
+            "cppStandard": "c++17",
+            "configurationProvider": "ms-vscode.makefile-tools"
+        }
+    ],
+    "version": 4
+}

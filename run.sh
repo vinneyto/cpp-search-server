@@ -1,0 +1,1 @@
+cd search-server && make clean && make release && ./output/search-server

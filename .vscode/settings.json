@@ -1,0 +1,19 @@
+{
+    "c-cpp-compile-run.cpp-flags": "-Wall -Wextra -g3 -std=c++17",
+    "files.associations": {
+        "*.cshader": "yaml",
+        "*.neoshader": "yaml",
+        "*.shader": "yaml",
+        "utility": "cpp",
+        "string": "cpp",
+        "numbers": "cpp",
+        "algorithm": "cpp",
+        "cmath": "cpp",
+        "map": "cpp",
+        "set": "cpp",
+        "vector": "cpp",
+        "numeric": "cpp",
+        "ostream": "cpp",
+        "iostream": "cpp"
+    }
+}
