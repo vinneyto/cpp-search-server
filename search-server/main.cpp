@@ -110,7 +110,10 @@ void PrintDocument(const Document& document) {
          << "rating = "s << document.rating << " }"s << endl;
 }
 
-enum DocumentStatus { ACTUAL, IRRELEVANT, BANNED, REMOVED };
+enum DocumentStatus { ACTUAL,
+                      IRRELEVANT,
+                      BANNED,
+                      REMOVED };
 
 class SearchServer {
    public:
@@ -118,7 +121,7 @@ class SearchServer {
     explicit SearchServer(const StringContainer& stop_words) {
         for (const string& word : stop_words) {
             if (!IsValidWord(word)) {
-                throw invalid_argument("stop words are invalid");
+                throw invalid_argument("stop word is invalid: "s + word);
             }
             stop_words_.insert(word);
         }
@@ -126,8 +129,6 @@ class SearchServer {
 
     explicit SearchServer(const std::string& stop_words_text)
         : SearchServer(SplitIntoWords(stop_words_text)) {}
-
-    explicit SearchServer() : SearchServer(""s) {}
 
     void AddDocument(int document_id, const string& document,
                      DocumentStatus status, const vector<int>& ratings) {
@@ -140,12 +141,6 @@ class SearchServer {
         }
 
         const vector<string> words = SplitIntoWordsNoStop(document);
-
-        for (const string& word : words) {
-            if (!IsValidWord(word)) {
-                throw invalid_argument("document words are invalid");
-            }
-        }
 
         const double inv_count = 1.0 / words.size();
 
@@ -226,7 +221,7 @@ class SearchServer {
     int GetDocumentCount() const { return document_status_.size(); }
 
     int GetDocumentId(int index) const {
-        if (index < 0 || index >= static_cast<int>(document_ids_.size())) {
+        if (index < 0) {
             throw out_of_range("index out of range");
         }
         return document_ids_.at(index);
@@ -312,6 +307,10 @@ class SearchServer {
     vector<string> SplitIntoWordsNoStop(const string& text) const {
         vector<string> words;
         for (const string& word : SplitIntoWords(text)) {
+            if (!IsValidWord(word)) {
+                throw invalid_argument("word is invalid: " + word);
+            }
+
             if (!IsStopWord(word)) {
                 words.push_back(word);
             }
@@ -421,7 +420,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
     // Сначала убеждаемся, что поиск слова, не входящего в список стоп-слов,
     // находит нужный документ
     {
-        SearchServer server;
+        SearchServer server({});
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         const auto found_docs = server.FindTopDocuments("in"s);
         ASSERT_EQUAL(found_docs.size(), 1);
@@ -455,7 +454,7 @@ void TestExcludeMinusWordsFromAddedDocumentContent() {
 }
 
 void TestRelevanceSorting() {
-    SearchServer server;
+    SearchServer server({});
     server.AddDocument(42, "cat in the city"s, DocumentStatus::ACTUAL, {});
     server.AddDocument(43, "cat in the big city"s, DocumentStatus::ACTUAL, {});
     server.AddDocument(44, "big dog"s, DocumentStatus::ACTUAL, {});
@@ -552,7 +551,7 @@ void TestSearchByStatus() {
 }
 
 void TestMatchDocumentReturnActialStatus() {
-    SearchServer server;
+    SearchServer server({});
     server.AddDocument(42, "gray cat"s, DocumentStatus::ACTUAL, {});
     server.AddDocument(43, "brown cat"s, DocumentStatus::IRRELEVANT, {});
     server.AddDocument(44, "little cat"s, DocumentStatus::BANNED, {});
@@ -579,7 +578,7 @@ void TestMatchDocumentReturnActialStatus() {
 }
 
 void TestMatchDocumentCheckMinusWords() {
-    SearchServer server;
+    SearchServer server({});
     server.AddDocument(42, "gray cat"s, DocumentStatus::ACTUAL, {});
 
     auto [words, _] = server.MatchDocument("gray cat -cat", 42);
@@ -588,7 +587,7 @@ void TestMatchDocumentCheckMinusWords() {
 }
 
 void TestAddWithAverageRating() {
-    SearchServer server;
+    SearchServer server({});
     server.AddDocument(42, "cat in the city"s, DocumentStatus::ACTUAL,
                        {1, 2, 3});
 
