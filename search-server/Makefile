@@ -14,6 +14,7 @@ OBJ = $(SRC:.cpp=.o)
 all: search-server
 
 search-server: $(OBJ)
+	mkdir -p output
 	$(CXX) $(CXXFLAGS) $^ -o output/$@
 
 %.o: %.cpp
