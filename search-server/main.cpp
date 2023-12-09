@@ -110,10 +110,7 @@ void PrintDocument(const Document& document) {
          << "rating = "s << document.rating << " }"s << endl;
 }
 
-enum DocumentStatus { ACTUAL,
-                      IRRELEVANT,
-                      BANNED,
-                      REMOVED };
+enum DocumentStatus { ACTUAL, IRRELEVANT, BANNED, REMOVED };
 
 class SearchServer {
    public:
@@ -220,12 +217,7 @@ class SearchServer {
 
     int GetDocumentCount() const { return document_status_.size(); }
 
-    int GetDocumentId(int index) const {
-        if (index < 0) {
-            throw out_of_range("index out of range");
-        }
-        return document_ids_.at(index);
-    }
+    int GetDocumentId(int index) const { return document_ids_.at(index); }
 
    private:
     struct QueryWord {
