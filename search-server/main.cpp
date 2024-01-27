@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <deque>
 #include <iostream>
 #include <map>
 #include <numeric>
@@ -110,7 +111,74 @@ void PrintDocument(const Document& document) {
          << "rating = "s << document.rating << " }"s << endl;
 }
 
-enum DocumentStatus { ACTUAL, IRRELEVANT, BANNED, REMOVED };
+ostream& operator<<(ostream& os, const Document& document) {
+    os << "{ "s
+       << "document_id = "s << document.id << ", "s
+       << "relevance = "s << document.relevance << ", "s
+       << "rating = "s << document.rating << " }"s;
+    return os;
+}
+
+enum DocumentStatus { ACTUAL,
+                      IRRELEVANT,
+                      BANNED,
+                      REMOVED };
+
+template <typename Iterator>
+class IteratorRange {
+   public:
+    explicit IteratorRange(Iterator begin, Iterator end, size_t size)
+        : begin_(begin), end_(end), size_(size) {}
+
+    Iterator begin() const { return begin_; }
+
+    Iterator end() const { return end_; }
+
+    size_t size() const { return size_; }
+
+   private:
+    Iterator begin_;
+    Iterator end_;
+    size_t size_;
+};
+
+template <typename Iterator>
+ostream& operator<<(ostream& os, const IteratorRange<Iterator>& range) {
+    for (auto it = range.begin(); it != range.end(); it++) {
+        os << *it;
+    }
+    return os;
+}
+
+template <typename Iterator>
+class Paginator {
+   public:
+    explicit Paginator(Iterator begin, Iterator end, size_t page_size) {
+        Iterator it = begin;
+
+        while (it != end) {
+            Iterator p_begin = it;
+
+            size_t size = min(page_size, size_t(distance(it, end)));
+
+            advance(it, size);
+
+            pages_.push_back(IteratorRange(p_begin, it, size));
+        }
+    }
+
+    auto begin() const { return pages_.begin(); }
+
+    auto end() const { return pages_.end(); }
+
+   private:
+    vector<IteratorRange<Iterator>> pages_;
+};
+
+template <typename Container>
+auto Paginate(const Container& c, size_t page_size) {
+    return Paginator(begin(c), end(c), page_size);
+}
 
 class SearchServer {
    public:
@@ -124,7 +192,7 @@ class SearchServer {
         }
     }
 
-    explicit SearchServer(const std::string& stop_words_text)
+    explicit SearchServer(const string& stop_words_text)
         : SearchServer(SplitIntoWords(stop_words_text)) {}
 
     void AddDocument(int document_id, const string& document,
@@ -319,7 +387,7 @@ class SearchServer {
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
-            for (const auto [id, tf] : word_to_document_freqs_.at(word)) {
+            for (const auto& [id, tf] : word_to_document_freqs_.at(word)) {
                 auto rating = document_ratings_.at(id);
                 auto status = document_status_.at(id);
 
@@ -333,7 +401,7 @@ class SearchServer {
             if (word_to_document_freqs_.count(word) == 0) {
                 continue;
             }
-            for (const auto [id, _] : word_to_document_freqs_.at(word)) {
+            for (const auto& [id, _] : word_to_document_freqs_.at(word)) {
                 document_to_relevance.erase(id);
             }
         }
@@ -350,11 +418,72 @@ class SearchServer {
     }
 };
 
+class RequestQueue {
+   public:
+    explicit RequestQueue(const SearchServer& search_server) : search_server_(search_server) {}
+    // сделаем "обёртки" для всех методов поиска, чтобы сохранять результаты для
+    // нашей статистики
+    template <typename DocumentPredicate>
+    std::vector<Document> AddFindRequest(const std::string& raw_query,
+                                         DocumentPredicate document_predicate) {
+        ++current_time_;
+
+        if (!requests_.empty() &&
+            current_time_ - requests_.front().execution_time >= min_in_day_) {
+            if (requests_.front().documents.empty()) {
+                --no_result_requests_count_;
+            }
+
+            requests_.pop_front();
+        }
+
+        auto documents =
+            search_server_.FindTopDocuments(raw_query, document_predicate);
+
+        if (documents.empty()) {
+            ++no_result_requests_count_;
+        }
+
+        requests_.push_back({current_time_, documents});
+
+        return documents;
+    }
+
+    std::vector<Document> AddFindRequest(const std::string& raw_query,
+                                         DocumentStatus status) {
+        return AddFindRequest(
+            raw_query, [status](int document_id, DocumentStatus document_status,
+                                int rating) { return document_status == status; });
+    }
+
+    std::vector<Document> AddFindRequest(const std::string& raw_query) {
+        return AddFindRequest(raw_query, DocumentStatus::ACTUAL);
+    }
+
+    int GetNoResultRequests() const {
+        return no_result_requests_count_;
+    }
+
+   private:
+    struct QueryResult {
+        int execution_time;
+        std::vector<Document> documents;
+    };
+    std::deque<QueryResult> requests_;
+    const static int min_in_day_ = 1440;
+
+    const SearchServer& search_server_;
+
+    int no_result_requests_count_ = 0;
+
+    int current_time_ = 0;
+};
+
 template <typename T, typename U>
-void AssertEqualImpl(const T& t, const U& u, const std::string& t_str,
-                     const std::string& u_str, const std::string& file,
-                     const std::string& func, unsigned line,
-                     const std::string& hint) {
+void AssertEqualImpl(const T& t, const U& u, const string& t_str,
+                     const string& u_str, const string& file,
+                     const string& func, unsigned line,
+                     const string& hint) {
     using namespace std;
     if (t != u) {
         cerr << boolalpha;
@@ -375,9 +504,9 @@ void AssertEqualImpl(const T& t, const U& u, const std::string& t_str,
 #define ASSERT_EQUAL_HINT(a, b, hint) \
     AssertEqualImpl((a), (b), #a, #b, __FILE__, __FUNCTION__, __LINE__, (hint))
 
-void AssertImpl(bool value, const std::string& expr_str,
-                const std::string& file, const std::string& func, unsigned line,
-                const std::string& hint) {
+void AssertImpl(bool value, const string& expr_str,
+                const string& file, const string& func, unsigned line,
+                const string& hint) {
     using namespace std;
     if (!value) {
         cerr << file << "("s << line << "): "s << func << ": "s;
@@ -397,7 +526,7 @@ void AssertImpl(bool value, const std::string& expr_str,
     AssertImpl(!!(expr), #expr, __FILE__, __FUNCTION__, __LINE__, (hint))
 
 template <typename F>
-void RunTestImpl(const F& func, const std::string& t_str) {
+void RunTestImpl(const F& func, const string& t_str) {
     using namespace std;
     func();
     cerr << t_str << " OK"s << endl;
@@ -604,34 +733,23 @@ void TestSearchServer() {
 }
 
 int main() {
-    TestSearchServer();
-
-    SearchServer search_server("и в на"s);
-    search_server.AddDocument(0, "белый кот и модный ошейник"s,
-                              DocumentStatus::ACTUAL, {8, -3});
-    search_server.AddDocument(1, "пушистый кот пушистый хвост"s,
-                              DocumentStatus::ACTUAL, {7, 2, 7});
-    search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s,
-                              DocumentStatus::ACTUAL, {5, -12, 2, 1});
-    search_server.AddDocument(3, "ухоженный скворец евгений"s,
-                              DocumentStatus::BANNED, {9});
-    cout << "ACTUAL by default:"s << endl;
-    for (const Document& document :
-         search_server.FindTopDocuments("пушистый ухоженный кот"s)) {
-        PrintDocument(document);
+    SearchServer search_server("and in at"s);
+    RequestQueue request_queue(search_server);
+    search_server.AddDocument(1, "curly cat curly tail"s, DocumentStatus::ACTUAL, {7, 2, 7});
+    search_server.AddDocument(2, "curly dog and fancy collar"s, DocumentStatus::ACTUAL, {1, 2, 3});
+    search_server.AddDocument(3, "big cat fancy collar "s, DocumentStatus::ACTUAL, {1, 2, 8});
+    search_server.AddDocument(4, "big dog sparrow Eugene"s, DocumentStatus::ACTUAL, {1, 3, 2});
+    search_server.AddDocument(5, "big dog sparrow Vasiliy"s, DocumentStatus::ACTUAL, {1, 1, 1});
+    // 1439 запросов с нулевым результатом
+    for (int i = 0; i < 1439; ++i) {
+        request_queue.AddFindRequest("empty request"s);
     }
-    cout << "BANNED:"s << endl;
-    for (const Document& document : search_server.FindTopDocuments(
-             "пушистый ухоженный кот"s, DocumentStatus::BANNED)) {
-        PrintDocument(document);
-    }
-    cout << "Even ids:"s << endl;
-    for (const Document& document : search_server.FindTopDocuments(
-             "пушистый ухоженный кот"s,
-             [](int document_id, DocumentStatus status, int rating) {
-                 return document_id % 2 == 0;
-             })) {
-        PrintDocument(document);
-    }
+    // все еще 1439 запросов с нулевым результатом
+    request_queue.AddFindRequest("curly dog"s);
+    // новые сутки, первый запрос удален, 1438 запросов с нулевым результатом
+    request_queue.AddFindRequest("big collar"s);
+    // первый запрос удален, 1437 запросов с нулевым результатом
+    request_queue.AddFindRequest("sparrow"s);
+    cout << "Total empty requests: "s << request_queue.GetNoResultRequests() << endl;
     return 0;
 }
