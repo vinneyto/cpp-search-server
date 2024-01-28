@@ -12,29 +12,7 @@ class RequestQueue {
 
     template <typename DocumentPredicate>
     std::vector<Document> AddFindRequest(const std::string& raw_query,
-                                         DocumentPredicate document_predicate) {
-        ++current_time_;
-
-        if (!requests_.empty() &&
-            current_time_ - requests_.front().execution_time >= min_in_day_) {
-            if (requests_.front().documents.empty()) {
-                --no_result_requests_count_;
-            }
-
-            requests_.pop_front();
-        }
-
-        auto documents =
-            search_server_.FindTopDocuments(raw_query, document_predicate);
-
-        if (documents.empty()) {
-            ++no_result_requests_count_;
-        }
-
-        requests_.push_back({current_time_, documents});
-
-        return documents;
-    }
+                                         DocumentPredicate document_predicate);
 
     std::vector<Document> AddFindRequest(const std::string& raw_query,
                                          DocumentStatus status);
@@ -45,7 +23,7 @@ class RequestQueue {
 
    private:
     struct QueryResult {
-        int execution_time;
+        uint64_t execution_time;
         std::vector<Document> documents;
     };
     std::deque<QueryResult> requests_;
@@ -55,5 +33,31 @@ class RequestQueue {
 
     int no_result_requests_count_ = 0;
 
-    int current_time_ = 0;
+    uint64_t current_time_ = 0;
 };
+
+template <typename DocumentPredicate>
+std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query,
+                                                   DocumentPredicate document_predicate) {
+    ++current_time_;
+
+    if (!requests_.empty() &&
+        current_time_ - requests_.front().execution_time >= min_in_day_) {
+        if (requests_.front().documents.empty()) {
+            --no_result_requests_count_;
+        }
+
+        requests_.pop_front();
+    }
+
+    auto documents =
+        search_server_.FindTopDocuments(raw_query, document_predicate);
+
+    if (documents.empty()) {
+        ++no_result_requests_count_;
+    }
+
+    requests_.push_back({current_time_, documents});
+
+    return documents;
+}
