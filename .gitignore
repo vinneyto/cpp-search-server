@@ -32,5 +32,4 @@
 *.app
 
 .DS_Store
-trash/output
-search-server/output
+output
